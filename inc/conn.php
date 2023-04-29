@@ -1,76 +1,199 @@
 <?php
+
 /** 
  * wpdb 实现事务 transaction
- * https://core.trac.wordpress.org/ticket/9422
- * https://core.trac.wordpress.org/attachment/ticket/9422/9422-new-wpdb-methods.diff
  */
 
-class Conn_fm extends wpdb {
+class Conn_frog extends wpdb {
 	public function __construct() {
 		$dbuser     = defined( 'DB_USER' ) ? DB_USER : '';
 		$dbpassword = defined( 'DB_PASSWORD' ) ? DB_PASSWORD : '';
 		$dbname     = defined( 'DB_NAME' ) ? DB_NAME : '';
 		$dbhost     = defined( 'DB_HOST' ) ? DB_HOST : '';
 		
-		// 在父类初始化, 获取到链接
+		// Initialize
 		parent::__construct($dbuser, $dbpassword, $dbname, $dbhost);
 		
-		// 初始化之后即启动事务
-		$this->start();
+		// start transaction after execute db_connect().
+		// $this->start();
 	}
-	
-	/**
-	 * check if current session has transaction id
-	 */
-	protected $has_tx_id = false;
 	
 	/**
 	 * Show SQL/DB errors.
 	 */
 	public $show_errors = true;
 	
-	// 启动事务
+	/**
+	 * The current connection ID (thread ID)
+	 */
+	public $conn_id = null;
+	
+	/**
+	 * Whether current connection is in autocommit mode.
+	 */
+	public $is_auto_commit = false;
+	
+	/**
+	 * Get the connection ID (thread ID) for current connection
+	 * https://dev.mysql.com/doc/refman/8.0/en/information-functions.html#function_connection-id
+	 */
+	public function get_conn_id() {
+		if ( $this->use_mysqli ) {
+			$res = mysqli_query( $this->dbh, 'SELECT CONNECTION_ID()' );
+			$modes_array = mysqli_fetch_array( $res );
+			if ( empty( $modes_array[0] ) ) {
+				return;
+			}
+			$conn_id = $modes_array[0];
+		} else {
+			// https://www.php.net/manual/zh/function.mysql-query.php
+			$res = mysql_query( 'SELECT CONNECTION_ID()', $this->dbh );
+			$conn_id = mysql_result( $res, 0 );
+		}
+		return $conn_id;
+	}
+	
+	/**
+	 * START A NEW TRANSACTION
+	 * 
+	 * By default, MySQL runs with autocommit mode enabled.
+	 * START TRANSACTION statement will disable autocommit mode implicitly for a single series of statements,
+	 * until you end the transaction with COMMIT or ROLLBACK.
+	 */
 	public function start() {
 		if ( $this->use_mysqli ) {
 			$res = mysqli_query( $this->dbh, 'START TRANSACTION' );
+			if (!$res) {
+				$err = 'failed to start transaction: ' . mysqli_error( $this->dbh );
+				$this->print_error($err);
+			}
 		} else {
 			$res = mysql_query( 'START TRANSACTION', $this->dbh );
+			if (!$res) {
+				$err = 'failed to start transaction: ' . mysql_error( $this->dbh );
+				$this->print_error($err);
+			}
 		}
-		$this->has_tx_id = true;
- 	}
-	
-	// 提交
-	public function commit() {
-		echo "\nCOMMIT\n";
-		if ( $this->use_mysqli ) {
-			$res = mysqli_query( $this->dbh, 'COMMIT' );
-		} else {
-			$res = mysql_query( 'COMMIT', $this->dbh );
-		}
- 	}
-	
-	// 回滚
-	public function rollback() {
-		echo "\nROLLBACK\n";
-		if ( $this->use_mysqli ) {
-			$res = mysqli_query( $this->dbh, 'ROLLBACK' );
-		} else {
-			$res = mysql_query( 'ROLLBACK', $this->dbh );
-		}
- 	}
-	
-	// 自动提交
-	public function auto_commit() {
-		echo "\nAUTO COMMIT\n";
-		if ( $this->use_mysqli ) {
-			$res = mysqli_query( $this->dbh, 'COMMIT' );
-		} else {
-			$res = mysql_query( 'COMMIT', $this->dbh );
-		}
+		$this->conn_id = $this->get_conn_id();
  	}
 	
 	/**
-	 * Insert multiple rows
+	 * COMMIT TRANSACTION
+	 *
+	 * Commits the current transaction, making its changes permanent
+	 */
+	public function commit() {
+		if ($this->is_auto_commit) {
+			echo 'current session is running in AUTOCOMMIT mode, Don\'t need to commit!';
+			return;
+		}
+		
+		if ( $this->use_mysqli ) {
+			$res = mysqli_query( $this->dbh, 'COMMIT' );
+			if (!$res) {
+				$err = 'failed to commit transaction: ' . mysqli_error( $this->dbh );
+				$this->print_error($err);
+			}
+		} else {
+			$res = mysql_query( 'COMMIT', $this->dbh );
+			if (!$res) {
+				$err = 'failed to commit transaction: ' . mysql_error( $this->dbh );
+				$this->print_error($err);
+			}
+		}
+		echo "\nCOMMIT\n";
+ 	}
+	
+	/**
+	 * ROLLBACK TRANSACTION
+	 *
+	 * rolls back the current transaction, canceling its changes.
+	 */
+	public function rollback() {
+		if ($this->is_auto_commit) {
+			echo 'current session is running in AUTOCOMMIT mode, failed to rollback!';
+			return;
+		}
+		if ( $this->use_mysqli ) {
+			$res = mysqli_query( $this->dbh, 'ROLLBACK' );
+			if (!$res) {
+				$err = 'failed to rollback transaction: ' . mysqli_error( $this->dbh );
+				$this->print_error($err);
+			}
+		} else {
+			$res = mysql_query( 'ROLLBACK', $this->dbh );
+			if (!$res) {
+				$err = 'failed to rollback transaction: ' . mysql_error( $this->dbh );
+				$this->print_error($err);
+			}
+		}
+		echo "\nROLLBACK\n";
+ 	}
+	
+	/**
+	 * SET AUTO-COMMIT
+	 *
+	 * AUTOCOMMIT statement:
+	 * AUTOCOMMIT is a session variable and must be set for each session.
+	 * To disable autocommit mode explicitly, use the following statement:
+	 *     SET autocommit=0;
+	 * After disabling autocommit mode by setting the autocommit variable to zero,
+	 * changes to transaction-safe tables (such as those for InnoDB or NDB) are not made permanent immediately.
+	 * You must use COMMIT to store your changes to disk or ROLLBACK to ignore the changes.
+	 * 
+	 * However, we have executed START TRANSACTION statement before executing any REST API,
+	 * therefore, current session is running in autocommit disabled mode,
+	 * we should execute a COMMIT statement to revert to autocommit mode.
+	 * 
+	 **/
+	public function auto_commit() {
+		if ( $this->use_mysqli ) {
+			$res = mysqli_query( $this->dbh, 'COMMIT' );
+			if (!$res) {
+				$err = 'failed to commit: ' . mysqli_error( $this->dbh );
+				$this->print_error($err);
+			}
+			
+			// get autocommit variable
+			$res = mysqli_query( $this->dbh, 'SELECT @@autocommit' );
+			$modes_array = mysqli_fetch_array( $res );
+			
+			// Set autocommit mode if current running in autocommit disabled mode
+			if ( !$modes_array[0] ) {
+				$res = mysqli_query( $this->dbh, 'SET autocommit = 1' );
+				if (!$res) {
+					$err = 'failed to set autocommit mode: ' . mysqli_error( $this->dbh );
+					$this->print_error($err);
+				}
+			}
+		} else {
+			$res = mysql_query( 'COMMIT', $this->dbh );
+			if (!$res) {
+				$err = 'failed to set commit mode: ' . mysql_error( $this->dbh );
+				$this->print_error($err);
+			}
+			
+			// get autocommit variable
+			$res = mysql_query( 'SELECT @@autocommit', $this->dbh );
+			$mode_var = mysql_result( $res, 0 );
+			
+			// Set autocommit mode if current running in autocommit disabled mode
+			if ( !$mode_var ) {
+				$res = mysql_query( 'SET autocommit = 1', $this->dbh );
+				if (!$res) {
+					$err = 'failed to set autocommit mode: ' . mysql_error( $this->dbh );
+					$this->print_error($err);
+				}
+			}
+		}
+		
+		$this->is_auto_commit = true;
+		echo "\nAUTO COMMIT\n";
+ 	}
+	
+	/**
+	 * INSERT MULTIPLE ROWS AT ONCE
+	 *
 	 * $table string 写入的表
 	 * $field [] 需要写入的字段组成的数组
 	 * $type  [] 需要写入字段的格式组成的数组 string, number
@@ -106,7 +229,8 @@ class Conn_fm extends wpdb {
 	}
 	
 	/**
-	 * 获取日期/日期时间
+	 * get current date or datetime
+	 *
 	 * $timezone timezone 需要获取哪个时区的时间, 缺省取系统配置
 	 * $date_format string 获取的时间格式
 	 */
@@ -115,7 +239,7 @@ class Conn_fm extends wpdb {
 		return date_format(date_create('now', $timezone), $date_format);
 	}
 	
-	// Copy from the parent class, The difference here is that an exception is thrown
+	// Copy from the parent class, the different here is throwing exception instead of printing error.
 	public function bail( $message, $error_code = '500' ) {
 		if ( $this->show_errors ) {
 			$error = '';
@@ -150,7 +274,7 @@ class Conn_fm extends wpdb {
 		}
 	}
 	
-	// Copy from the parent class, The difference here is that an exception is thrown
+	// Copy from the parent class, the different here is throwing exception instead of printing error.
 	public function print_error( $str = '' ) {
 		global $EZSQL_ERROR;
 
@@ -187,8 +311,6 @@ class Conn_fm extends wpdb {
 
 		wp_load_translations_early();
 		
-		// rollback
-		$this->rollback();
 		// If there is an error then take note of it.
 		if ( is_multisite() ) {
 			$msg = __( 'WordPress database error:' ) . $str . $this->last_query;
