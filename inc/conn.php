@@ -74,7 +74,10 @@ class Conn_frog extends wpdb {
 				$this->print_error($err);
 			}
 		}
-		$this->conn_id = $this->get_conn_id();
+		
+		if (!$this->conn_id) {
+			$this->conn_id = $this->get_conn_id();
+		}
  	}
 	
 	/**
@@ -84,7 +87,7 @@ class Conn_frog extends wpdb {
 	 */
 	public function commit() {
 		if ($this->is_auto_commit) {
-			echo 'current session is running in AUTOCOMMIT mode, Don\'t need to commit!';
+			echo 'Don\'t need to commit in AUTOCOMMIT mode!';
 			return;
 		}
 		
@@ -94,12 +97,14 @@ class Conn_frog extends wpdb {
 				$err = 'failed to commit transaction: ' . mysqli_error( $this->dbh );
 				$this->print_error($err);
 			}
+			$this->start();
 		} else {
 			$res = mysql_query( 'COMMIT', $this->dbh );
 			if (!$res) {
 				$err = 'failed to commit transaction: ' . mysql_error( $this->dbh );
 				$this->print_error($err);
 			}
+			$this->start();
 		}
 		echo "\nCOMMIT\n";
  	}
@@ -111,7 +116,7 @@ class Conn_frog extends wpdb {
 	 */
 	public function rollback() {
 		if ($this->is_auto_commit) {
-			echo 'current session is running in AUTOCOMMIT mode, failed to rollback!';
+			echo 'Failed to rollback in AUTOCOMMIT mode!';
 			return;
 		}
 		if ( $this->use_mysqli ) {
