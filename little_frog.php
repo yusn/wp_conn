@@ -61,17 +61,17 @@ function demo($request) {
 		
 		$res_data = ['total'=> $row, 'msg'=> '', 'status' => 200];
 		$response = new WP_REST_Response($res_data);
-		print($conn->conn_id);
+		print($conn->conn_id . "\n");
 		print($conn->is_auto_commit);
 		$conn->query("drop table if exists stu");
 		$conn->query("create table if not exists stu (id int not null AUTO_INCREMENT, name varchar(20) null, PRIMARY KEY (id))");
 		$conn->query("insert into stu (name) values ('Jim')");
 		print($conn->rows_affected);
 		$conn->commit();
-		$conn->start();
-		//$conn->auto_commit();
+		print($conn->conn_id);
+		$conn->auto_commit();
 		$conn->query("update stu set name ='Dave' where name = 'Jim'");
-		throw new ErrorException('test');
+		// throw new ErrorException('test');
 	} catch (Exception $err) {
 		return $err;
 	}
@@ -86,6 +86,15 @@ function frog_handle_transaction($response) {
 	if (is_wp_error( $response ) || $response instanceof Exception ) {
 		// rollback
 		$conn->rollback();
+		if ($response instanceof Exception) {
+			$response = new WP_REST_Response(
+				array(
+					'code'    => -1,
+					'message' => $response->getMessage(),
+					'data'    => null,
+				)
+			);
+		}
 	} else {
 		// commit
 		$conn->commit();
