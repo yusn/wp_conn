@@ -77,8 +77,9 @@ function demo($request) {
  * Handle transaction immediately after executing any REST API
  * @see https://developer.wordpress.org/reference/hooks/rest_request_after_callbacks/
  */
-function frog_handle_transaction($response) {
+function frog_handle_transaction( $response, $handler, $request ) {
 	global $conn;
+	$total = null;
 	if (is_wp_error( $response ) || $response instanceof Exception ) {
 		// rollback
 		$conn->rollback();
@@ -87,7 +88,11 @@ function frog_handle_transaction($response) {
 				array(
 					'code'    => -1,
 					'message' => $response->getMessage(),
+					'total'   => $total,
 					'data'    => null,
+					'request' => $request->get_params(),
+					'method'  => $request->get_method(),
+					'request_id' => $request->get_header( 'request_id' ),
 				)
 			);
 		}
@@ -96,23 +101,49 @@ function frog_handle_transaction($response) {
 		$conn->commit();
 		// Closes the current database connection 
 		$conn->close();
+		if ( empty($response) ) {
+			$response = new WP_REST_Response(
+				array(
+					'code'    => 0,
+					'message' => null,
+					'total'   => $total,
+					'data'    => [],
+					'request' => $request->get_params(),
+					'method'  => $request->get_method(),
+					'request_id' => $request->get_header( 'request_id' ),
+				)
+			);
+		} else {
+			$response = new WP_REST_Response(
+				array(
+					'code'    => 0,
+					'message' => is_array($response) ? $response['message'] : null,
+					'total'   => is_array($response) ? $response['total'] : $total,
+					'data'    => $response,
+					'request' => $request->get_params(),
+					'method'  => $request->get_method(),
+					'request_id' => $request->get_header( 'request_id' ),
+				)
+			);
+		}
 	}
 	return $response;
 }
 
-add_filter('rest_request_after_callbacks', 'frog_handle_transaction', 9, 1);
+add_filter('rest_request_after_callbacks', 'frog_handle_transaction', 9, 3);
 
 /**
  * Start transaction immediately before executing any REST API
  * @see https://developer.wordpress.org/reference/hooks/rest_request_before_callbacks/
  */
-function frog_start_transaction($response) {
+function frog_start_transaction( $response, $handler, $request ) {
 	global $conn;
 	// Start transaction
 	$conn->start();
+	$request->add_header( 'request_id', get_fm_request_id() );
 	return $response;
 }
 
-add_filter('rest_request_before_callbacks', 'frog_start_transaction', 9, 1);
+add_filter('rest_request_before_callbacks', 'frog_start_transaction', 9, 3);
 
 ?>

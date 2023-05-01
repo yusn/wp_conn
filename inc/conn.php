@@ -26,18 +26,21 @@ class Conn_frog extends wpdb {
 	/**
 	 * The current connection ID (thread ID)
 	 */
-	public $conn_id = null;
+	private $conn_id = null;
 	
 	/**
 	 * Whether current connection is in autocommit mode.
 	 */
-	public $is_autocommit = false;
+	private $is_autocommit = false;
 	
 	/**
 	 * Get the connection ID (thread ID) for current connection
 	 * https://dev.mysql.com/doc/refman/8.0/en/information-functions.html#function_connection-id
 	 */
 	public function get_conn_id() {
+		if ( this->$conn_id ) {
+			return $conn_id;
+		}
 		if ( $this->use_mysqli ) {
 			$res = mysqli_query( $this->dbh, 'SELECT CONNECTION_ID()' );
 			$modes_array = mysqli_fetch_array( $res );
