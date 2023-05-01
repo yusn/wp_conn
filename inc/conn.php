@@ -31,7 +31,7 @@ class Conn_frog extends wpdb {
 	/**
 	 * Whether current connection is in autocommit mode.
 	 */
-	public $is_auto_commit = false;
+	public $is_autocommit = false;
 	
 	/**
 	 * Get the connection ID (thread ID) for current connection
@@ -61,23 +61,20 @@ class Conn_frog extends wpdb {
 	 * until you end the transaction with COMMIT or ROLLBACK.
 	 */
 	public function start() {
-		if ( $this->use_mysqli ) {
-			$res = mysqli_query( $this->dbh, 'START TRANSACTION' );
-			if (!$res) {
-				$err = 'failed to start transaction: ' . mysqli_error( $this->dbh );
-				$this->print_error($err);
+		// 禁用自动提交
+		$res = $this->dbh->autocommit(FALSE);
+		if ( ! $res ) {
+			if ( $this->use_mysqli ) {
+				$err = 'Failed to set autocommit: ' . mysqli_error( $this->dbh );
+				
+			} else {
+				$err = 'Failed to set autocommit: ' . mysql_error( $this->dbh );
 			}
-		} else {
-			$res = mysql_query( 'START TRANSACTION', $this->dbh );
-			if (!$res) {
-				$err = 'failed to start transaction: ' . mysql_error( $this->dbh );
-				$this->print_error($err);
-			}
+			$this->print_error($err);
+
 		}
 		
-		if (!$this->conn_id) {
-			$this->conn_id = $this->get_conn_id();
-		}
+		$this->conn_id = $this->dbh->thread_id;
  	}
 	
 	/**
@@ -86,25 +83,18 @@ class Conn_frog extends wpdb {
 	 * Commits the current transaction, making its changes permanent
 	 */
 	public function commit() {
-		if ($this->is_auto_commit) {
+		if ( $this->is_autocommit ) {
 			echo 'Don\'t need to commit in AUTOCOMMIT mode!';
 			return;
 		}
-		
-		if ( $this->use_mysqli ) {
-			$res = mysqli_query( $this->dbh, 'COMMIT' );
-			if (!$res) {
-				$err = 'failed to commit transaction: ' . mysqli_error( $this->dbh );
-				$this->print_error($err);
+		$res = $this->dbh->commit();
+		if ( ! $res ) {
+			if ( $this->use_mysqli ) {
+				$err = 'Failed to commit: ' . mysqli_error( $this->dbh );
+			} else {
+				$err = 'Failed to commit: ' . mysql_error( $this->dbh );
 			}
-			$this->start();
-		} else {
-			$res = mysql_query( 'COMMIT', $this->dbh );
-			if (!$res) {
-				$err = 'failed to commit transaction: ' . mysql_error( $this->dbh );
-				$this->print_error($err);
-			}
-			$this->start();
+			$this->print_error($err);
 		}
 		echo "\nCOMMIT\n";
  	}
@@ -113,24 +103,28 @@ class Conn_frog extends wpdb {
 	 * ROLLBACK TRANSACTION
 	 *
 	 * rolls back the current transaction, canceling its changes.
+	 * 
+	 * Some statements cannot be rolled back.
+	 * In general, these include data definition language (DDL) statements, such as those that create or drop databases,
+	 * those that create, drop, or alter tables or stored routines.
+	 *
+	 * You should design your transactions not to include DDL statements.
+	 * 
+	 * @see https://dev.mysql.com/doc/refman/8.0/en/cannot-roll-back.html
 	 */
 	public function rollback() {
-		if ($this->is_auto_commit) {
+		if ( $this->is_autocommit ) {
 			echo 'Failed to rollback in AUTOCOMMIT mode!';
 			return;
 		}
-		if ( $this->use_mysqli ) {
-			$res = mysqli_query( $this->dbh, 'ROLLBACK' );
-			if (!$res) {
-				$err = 'failed to rollback transaction: ' . mysqli_error( $this->dbh );
-				$this->print_error($err);
+		$res = $this->dbh->rollback();
+		if ( ! $res ) {
+			if ( $this->use_mysqli ) {
+				$err = 'Failed to rollback: ' . mysqli_error( $this->dbh );
+			} else {
+				$err = 'Failed to rollback: ' . mysql_error( $this->dbh );
 			}
-		} else {
-			$res = mysql_query( 'ROLLBACK', $this->dbh );
-			if (!$res) {
-				$err = 'failed to rollback transaction: ' . mysql_error( $this->dbh );
-				$this->print_error($err);
-			}
+			$this->print_error($err);
 		}
 		echo "\nROLLBACK\n";
  	}
@@ -151,49 +145,42 @@ class Conn_frog extends wpdb {
 	 * we should execute a COMMIT statement to revert to autocommit mode.
 	 * 
 	 **/
-	public function auto_commit() {
+	public function autocommit() {
 		if ( $this->use_mysqli ) {
-			$res = mysqli_query( $this->dbh, 'COMMIT' );
-			if (!$res) {
-				$err = 'failed to commit: ' . mysqli_error( $this->dbh );
-				$this->print_error($err);
-			}
-			
 			// get autocommit variable
 			$res = mysqli_query( $this->dbh, 'SELECT @@autocommit' );
 			$modes_array = mysqli_fetch_array( $res );
 			
 			// Set autocommit mode if current running in autocommit disabled mode
-			if ( !$modes_array[0] ) {
-				$res = mysqli_query( $this->dbh, 'SET autocommit = 1' );
-				if (!$res) {
-					$err = 'failed to set autocommit mode: ' . mysqli_error( $this->dbh );
+			if ( ! $modes_array[0] ) {
+				$res = $this->dbh->autocommit(TRUE);
+				if ( ! $res ) {
+					$err = 'failed to set autocommit: ' . mysqli_error( $this->dbh );
 					$this->print_error($err);
 				}
+				$this->is_autocommit = true;
+				echo "\nAUTO COMMIT\n";
+			} else {
+				echo 'Current session is already running in autocommit mode';
 			}
 		} else {
-			$res = mysql_query( 'COMMIT', $this->dbh );
-			if (!$res) {
-				$err = 'failed to set commit mode: ' . mysql_error( $this->dbh );
-				$this->print_error($err);
-			}
-			
 			// get autocommit variable
 			$res = mysql_query( 'SELECT @@autocommit', $this->dbh );
 			$mode_var = mysql_result( $res, 0 );
 			
 			// Set autocommit mode if current running in autocommit disabled mode
-			if ( !$mode_var ) {
-				$res = mysql_query( 'SET autocommit = 1', $this->dbh );
-				if (!$res) {
-					$err = 'failed to set autocommit mode: ' . mysql_error( $this->dbh );
+			if ( ! $mode_var ) {
+				$res = $this->dbh->autocommit(TRUE);
+				if ( ! $res ) {
+					$err = 'failed to set autocommit: ' . mysql_error( $this->dbh );
 					$this->print_error($err);
 				}
+				$this->is_autocommit = true;
+				echo "\nAUTO COMMIT\n";
+			} else {
+				echo 'Current session is already running in autocommit mode';
 			}
 		}
-		
-		$this->is_auto_commit = true;
-		echo "\nAUTO COMMIT\n";
  	}
 	
 	/**
@@ -214,7 +201,7 @@ class Conn_frog extends wpdb {
 		$values = array();
 		foreach ($data as $val) {
 			foreach($val as $k => $v) {
-				if ($type[$k] === 'string') {
+				if ( $type[$k] === 'string' ) {
 					$val[$k] = "'$v'";
 				}
 			}

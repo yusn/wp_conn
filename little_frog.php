@@ -1,9 +1,9 @@
 <?php
 /**
  * Plugin Name: Little Frog
- * Plugin URI: https://muguayuan.com/2018/12186.html
- * Description: CRM 系统
- * Version: 1.0
+ * Plugin URI: https://muguayuan.com/2023/21649.html
+ * Description: 在 WordPress 中实现 DML 事务
+ * Version: 1.0.1
  * Author URI:  https://muguayuan.com
  * License:     GPLv2
  */
@@ -64,14 +64,16 @@ function demo($request) {
 		print($conn->conn_id . "\n");
 		print($conn->is_auto_commit);
 		$conn->query("drop table if exists stu");
+		echo 'drop table';
 		$conn->query("create table if not exists stu (id int not null AUTO_INCREMENT, name varchar(20) null, PRIMARY KEY (id))");
+		echo 'create table';
+		$conn->rollback();
 		$conn->query("insert into stu (name) values ('Jim')");
 		print($conn->rows_affected);
-		$conn->commit();
 		print($conn->conn_id);
-		$conn->auto_commit();
+		$conn->commit();
 		$conn->query("update stu set name ='Dave' where name = 'Jim'");
-		// throw new ErrorException('test');
+		throw new ErrorException('test');
 	} catch (Exception $err) {
 		return $err;
 	}
