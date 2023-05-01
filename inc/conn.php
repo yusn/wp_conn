@@ -81,6 +81,8 @@ class Conn_frog extends wpdb {
 	 * COMMIT TRANSACTION
 	 *
 	 * Commits the current transaction, making its changes permanent
+	 *
+	 * https://www.php.net/manual/zh/mysqli.autocommit.php
 	 */
 	public function commit() {
 		if ( $this->is_autocommit ) {
@@ -111,6 +113,7 @@ class Conn_frog extends wpdb {
 	 * You should design your transactions not to include DDL statements.
 	 * 
 	 * @see https://dev.mysql.com/doc/refman/8.0/en/cannot-roll-back.html
+	 * https://www.php.net/manual/zh/mysqli.rollback.php
 	 */
 	public function rollback() {
 		if ( $this->is_autocommit ) {
@@ -130,7 +133,7 @@ class Conn_frog extends wpdb {
  	}
 	
 	/**
-	 * SET AUTO-COMMIT
+	 * SET AUTOCOMMIT
 	 *
 	 * AUTOCOMMIT statement:
 	 * AUTOCOMMIT is a session variable and must be set for each session.
@@ -143,8 +146,9 @@ class Conn_frog extends wpdb {
 	 * However, we have executed START TRANSACTION statement before executing any REST API,
 	 * therefore, current session is running in autocommit disabled mode,
 	 * we should execute a COMMIT statement to revert to autocommit mode.
+	 *
 	 * 
-	 **/
+	 */
 	public function autocommit() {
 		if ( $this->use_mysqli ) {
 			// get autocommit variable

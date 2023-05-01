@@ -7,12 +7,7 @@
  * Author URI:  https://muguayuan.com
  * License:     GPLv2
  */
-add_filter('rest_url_prefix', 'rename_frog_crm_url_prefix'); 
-function rename_frog_crm_url_prefix() {
-	return 'api';
-}
 
-// 
 include_once('inc/conn.php');
 
 // register demo API 
@@ -67,7 +62,6 @@ function demo($request) {
 		echo 'drop table';
 		$conn->query("create table if not exists stu (id int not null AUTO_INCREMENT, name varchar(20) null, PRIMARY KEY (id))");
 		echo 'create table';
-		$conn->rollback();
 		$conn->query("insert into stu (name) values ('Jim')");
 		print($conn->rows_affected);
 		print($conn->conn_id);
