@@ -18,6 +18,8 @@ class Conn_frog extends wpdb {
 		// $this->start();
 	}
 	
+	protected $session = array();
+	
 	/**
 	 * Show SQL/DB errors.
 	 */
@@ -26,7 +28,7 @@ class Conn_frog extends wpdb {
 	/**
 	 * The current connection ID (thread ID)
 	 */
-	private $conn_id = null;
+	public $conn_id = null;
 	
 	/**
 	 * Whether current connection is in autocommit mode.
@@ -34,12 +36,27 @@ class Conn_frog extends wpdb {
 	private $is_autocommit = false;
 	
 	/**
+	 * The current user ID
+	 */
+	private $user_id = -1;
+	
+	/**
+	 * Get the current user ID
+	 */
+	public function get_user_id() {
+		if ( empty($user_id) ) {
+            $this->user_id = get_current_user_id();
+        }
+        return $this->user_id;
+	}
+	
+	/**
 	 * Get the connection ID (thread ID) for current connection
 	 * https://dev.mysql.com/doc/refman/8.0/en/information-functions.html#function_connection-id
 	 */
 	public function get_conn_id() {
-		if ( this->$conn_id ) {
-			return $conn_id;
+		if ( $this->conn_id ) {
+			return $this->conn_id;
 		}
 		if ( $this->use_mysqli ) {
 			$res = mysqli_query( $this->dbh, 'SELECT CONNECTION_ID()' );
@@ -53,7 +70,17 @@ class Conn_frog extends wpdb {
 			$res = mysql_query( 'SELECT CONNECTION_ID()', $this->dbh );
 			$conn_id = mysql_result( $res, 0 );
 		}
-		return $conn_id;
+		return $this->conn_id;
+	}
+	
+	/**
+	 * reset connect information
+	 */
+	public function reset_session_info($option_arr) {
+		$this->session['user_id'] = $this->get_user_id();
+		$this->session['conn_id'] = $this->get_conn_id();
+		$this->session['dbname']  = $this->dbname;
+		$this->session = array_merge($option_arr, $this->session);
 	}
 	
 	/**
@@ -63,7 +90,8 @@ class Conn_frog extends wpdb {
 	 * START TRANSACTION statement will disable autocommit mode implicitly for a single series of statements,
 	 * until you end the transaction with COMMIT or ROLLBACK.
 	 */
-	public function start() {
+	public function start($option) {
+		$this->db_connect();
 		// 禁用自动提交
 		$res = $this->dbh->autocommit(FALSE);
 		if ( ! $res ) {
@@ -74,10 +102,9 @@ class Conn_frog extends wpdb {
 				$err = 'Failed to set autocommit: ' . mysql_error( $this->dbh );
 			}
 			$this->print_error($err);
-
 		}
-		
 		$this->conn_id = $this->dbh->thread_id;
+		$this->reset_session_info($option);
  	}
 	
 	/**
@@ -225,6 +252,74 @@ class Conn_frog extends wpdb {
 			$rows_affected = mysql_affected_rows( $this->dbh );
 		}
 		return $this->$rows_affected = $rows_affected;
+	}
+	
+	/**
+	 * get current date or datetime
+	 *
+	 * $timezone timezone 需要获取哪个时区的时间, 缺省取系统配置
+	 * $date_format string 获取的时间格式
+	 */
+	public function convert_where($where_arr = []) {
+		// print_r($where_arr);
+		print('____1');
+		if ( ! is_array( $where_arr ) ) {
+			return fm_die('请传入数组');
+		}
+		$where_str = '';
+		$where_str_arr = [];
+		// 空数组
+		if ( ! count($where_arr) ) {
+			return $where_str;
+		}
+		
+		$key_arr = array_keys( $where_arr );
+		
+		foreach( $key_arr as $key ) {
+			$array_val = $where_arr[$key];
+			// 值不是数组的直接返回值, 值是数组的继续处理
+			if ( ! is_array( $array_val ) ) {
+				$str = is_string($array_val) ? "$key = '$array_val'" : "$key = $array_val";
+				$where_str_arr[] = $str;
+			} else if ( count($array_val) ) {
+				// 处理 in, not in: 二级数组只处理第一个键值对
+				$sub_first_key = array_keys( $array_val )['0'];
+				$sub_first_val = $array_val[$sub_first_key];
+				$sub_first_key = strtoupper( $sub_first_key );
+				
+				// 处理 IN 和 NOT IN 条件
+				if ( in_array($sub_first_key, ['IN', 'NOT IN'], true) ) {
+					if ( ! is_array($sub_first_val) ) {
+						$err = "$sub_first_key 的值必须是数组";
+						$this->print_error($err);
+					}
+					// 只要第一个值是字符串则拼接时值都加引号, 否则不加引号
+					if ( is_string($sub_first_val[0])) {
+						$sub_first_val = "'" . implode("','", $sub_first_val) . "'";
+					} else {
+						$sub_first_val = implode(",", $sub_first_val);
+					}
+					$where_str_arr[] = "$key $sub_first_key ($sub_first_val)";
+				}
+				
+				// 处理常规比较操作符: >, >=, <, <=, <>
+				$sub_key_arr = array_keys( $array_val );
+				$comp_arr    = array('>', '>=', '<', '<=', '<>');
+				$opr_arr     = array_intersect($sub_key_arr, $comp_arr);
+				foreach($opr_arr as $opr_key) {
+					// 字符串的加引号, 否则不加引号
+					$str = $array_val[$opr_key];
+					if ( is_string($str) ) {
+						$where_str_arr[] = "$key $opr_key '$str'";
+					} else {
+						$where_str_arr[] = "$key $opr_key $str";
+					}
+				}
+			}
+			
+		}
+		$where_str = implode(" AND ", $where_str_arr);
+		return $where_str;
 	}
 	
 	/**

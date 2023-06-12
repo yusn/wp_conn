@@ -28,17 +28,16 @@ function reg_frog_router() {
 global $conn;
 $conn = new Conn_frog();
 
-
 /**
  * Sets the default exception handler if an exception is not caught within a try/catch block.
  *  Execution will stop after the callback is called.
- */ 
+ */
 set_exception_handler('frog_global_exception_cb');
 function frog_global_exception_cb(Throwable $exception) {
 	global $conn;
-	// rollback
 	$conn->rollback();
-	echo "Uncaught exception: " , $exception->getMessage(), "\n";
+	$err = "Uncaught exceptiod: " . $exception->getMessage();
+	echo $err;
 }
 
 /**
@@ -56,17 +55,20 @@ function demo($request) {
 		
 		$res_data = ['total'=> $row, 'msg'=> '', 'status' => 200];
 		$response = new WP_REST_Response($res_data);
-		print($conn->conn_id . "\n");
+		print('conn_id(the current database connection ID(thread ID)):' . $conn->conn_id . "\n\n");
 		print($conn->is_auto_commit);
-		$conn->query("drop table if exists stu");
-		echo 'drop table';
-		$conn->query("create table if not exists stu (id int not null AUTO_INCREMENT, name varchar(20) null, PRIMARY KEY (id))");
-		echo 'create table';
-		$conn->query("insert into stu (name) values ('Jim')");
-		print($conn->rows_affected);
-		print($conn->conn_id);
+		$conn->query("drop table if exists fm_demo");
+		echo 'drop table if exists fm_demo' . "\n";
+		$conn->query("create table if not exists fm_demo (id int not null AUTO_INCREMENT, name varchar(20) null, PRIMARY KEY (id))");
+		echo 'create table if not exists fm_demo (id int not null AUTO_INCREMENT, name varchar(20) null, PRIMARY KEY (id))' . "\n";
+		$conn->query("insert into fm_demo (name) values ('Jim')");
+		echo "insert into fm_demo (name) values ('Jim')" . "\n";
+		print('影响行数:' . $conn->rows_affected . "\n");
 		$conn->commit();
-		$conn->query("update stu set name ='Dave' where name = 'Jim'");
+		echo 'commit' . "\n";
+		$conn->query("update fm_demo set name ='Dave' where name = 'Jim'");
+		echo "update fm_demo set name ='Dave' where name = 'Jim'" . "\n";
+		echo "throw Exception: 下一步将回滚";
 		throw new ErrorException('test');
 	} catch (Exception $err) {
 		return $err;
@@ -83,6 +85,7 @@ function frog_handle_transaction( $response, $handler, $request ) {
 	if (is_wp_error( $response ) || $response instanceof Exception ) {
 		// rollback
 		$conn->rollback();
+		$conn->close();
 		if ($response instanceof Exception) {
 			$response = new WP_REST_Response(
 				array(
@@ -106,7 +109,7 @@ function frog_handle_transaction( $response, $handler, $request ) {
 				array(
 					'code'    => 0,
 					'message' => null,
-					'total'   => $total,
+					'total'   => 0,
 					'data'    => [],
 					'request' => $request->get_params(),
 					'method'  => $request->get_method(),
@@ -118,7 +121,7 @@ function frog_handle_transaction( $response, $handler, $request ) {
 				array(
 					'code'    => 0,
 					'message' => is_array($response) ? $response['message'] : null,
-					'total'   => is_array($response) ? $response['total'] : $total,
+					'total'   => is_array($response) ? $response['total'] : count($response),
 					'data'    => $response,
 					'request' => $request->get_params(),
 					'method'  => $request->get_method(),
@@ -137,10 +140,12 @@ add_filter('rest_request_after_callbacks', 'frog_handle_transaction', 9, 3);
  * @see https://developer.wordpress.org/reference/hooks/rest_request_before_callbacks/
  */
 function frog_start_transaction( $response, $handler, $request ) {
+	$request_id = get_fm_request_id();
+	$request->add_header( 'request_id', $request_id );
+	$conn_info = array('request_id' => $request_id);
 	global $conn;
-	// Start transaction
-	$conn->start();
-	$request->add_header( 'request_id', get_fm_request_id() );
+	$conn->start($conn_info);
+	// print_r($conn->session);
 	return $response;
 }
 
