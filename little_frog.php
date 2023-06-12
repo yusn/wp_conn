@@ -140,10 +140,27 @@ add_filter('rest_request_after_callbacks', 'frog_handle_transaction', 9, 3);
  * @see https://developer.wordpress.org/reference/hooks/rest_request_before_callbacks/
  */
 function frog_start_transaction( $response, $handler, $request ) {
-	$request_id = get_fm_request_id();
+	global $conn;
+	
+	/**
+	* generate request ID for current request
+	*/
+	function _get_request_id($conn) {
+		static $cache_time, $seq;
+		$current_time = $conn->get_current_date('mdHis');
+		if ($cache_time === $current_time) {
+			$seq++;
+		} else {
+			$cache_time = $current_time;
+			$seq = 1;
+		}
+		// 当前时间的 16 进制表示拼接
+		return dechex($current_time) . '_' . $seq . '_' . get_brave_hash(rand(8, 8));
+	}
+	
+	$request_id = _get_request_id($conn);
 	$request->add_header( 'request_id', $request_id );
 	$conn_info = array('request_id' => $request_id);
-	global $conn;
 	$conn->start($conn_info);
 	// print_r($conn->session);
 	return $response;

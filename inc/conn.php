@@ -255,10 +255,10 @@ class Conn_frog extends wpdb {
 	}
 	
 	/**
-	 * get current date or datetime
+	 * convert PHP two-dimensional array to string for SQL statement
 	 *
-	 * $timezone timezone 需要获取哪个时区的时间, 缺省取系统配置
-	 * $date_format string 获取的时间格式
+	 * $where_arr array (two-dimensional array) 需要转换的 PHP 二维数组
+	 * return string 返回能够直接在 SQL 语句 WHERE 子句中使用的字符串
 	 */
 	public function convert_where($where_arr = []) {
 		// print_r($where_arr);
