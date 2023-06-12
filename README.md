@@ -1,5 +1,5 @@
 ## 插件简单
-这是一个 WordPress 插件，我给它暂时命名为 wp_wpdb_transaction，它能让 WordPress 在 REST API 中实现事务。
+这是一个 WordPress 插件，我给它暂时命名为 wp_conn_transaction，它能让 WordPress 在 REST API 中实现事务。
 
 ## 安装插件
 请插件使用，下载安装包解压到 WordPress 插件目录，并到 WordPress 后台激活插件。
