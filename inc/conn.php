@@ -41,7 +41,7 @@ class Conn_frog extends wpdb {
 	private $user_id = -1;
 	
 	/**
-	 * Get the current user ID
+	 * Get the current WordPress user ID
 	 */
 	public function get_user_id() {
 		if ( empty($user_id) ) {
@@ -179,7 +179,7 @@ class Conn_frog extends wpdb {
 	 *
 	 * 
 	 */
-	public function autocommit() {
+	public function set_autocommit() {
 		if ( $this->use_mysqli ) {
 			// get autocommit variable
 			$res = mysqli_query( $this->dbh, 'SELECT @@autocommit' );
@@ -262,7 +262,6 @@ class Conn_frog extends wpdb {
 	 */
 	public function convert_where($where_arr = []) {
 		// print_r($where_arr);
-		print('____1');
 		if ( ! is_array( $where_arr ) ) {
 			return fm_die('请传入数组');
 		}
@@ -328,7 +327,7 @@ class Conn_frog extends wpdb {
 	 * $timezone timezone 需要获取哪个时区的时间, 缺省取系统配置
 	 * $date_format string 获取的时间格式
 	 */
-	public function current_date($date_format = 'Y-m-d H:i:s', $timezone = NULL) {
+	public function get_current_date($date_format = 'Y-m-d H:i:s', $timezone = NULL) {
 		$timezone = $timezone ? $timezone : wp_timezone();
 		return date_format(date_create('now', $timezone), $date_format);
 	}
