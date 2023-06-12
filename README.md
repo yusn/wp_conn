@@ -1,4 +1,4 @@
-## 插件简单
+## 插件简介
 这是一个 WordPress 插件，虽然项目的名字暂时称作 wp_conn_transaction，但插件被命名为 little_frog，它能让 WordPress 在 REST API 中实现事务。
 
 ## 安装插件
