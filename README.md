@@ -12,7 +12,7 @@ demo 地址如下：http://example.com/?rest_route=/conn_test/v1/demo
 无需参数
 #### 调用说明
 通过 postman 直接调用 demo 地址即可看到 demo 方法的执行日志
-![image](https://github.com/yusn/conn_test/assets/11848830/3bc3eddf-66ba-413c-9758-344ae3b0a408)
+![image](https://github.com/yusn/wp_conn/assets/11848830/3bc3eddf-66ba-413c-9758-344ae3b0a408)
 ## $conn 的使用方法
 $conn 是一个全局变量，你可以在任何地方通过`global $conn;`来引用并使用它，默认情况下 $conn 是禁用自动提交的。
 ### 对事务的操作
