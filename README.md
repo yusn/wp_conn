@@ -1,5 +1,5 @@
 ## 插件简介
-这是一个 WordPress 插件，虽然项目的名字暂时称作 wp_conn_transaction，但插件被命名为 little_frog，它能让 WordPress 在 REST API 中实现事务。
+这是一个 WordPress 插件，名为 wp_conn，它能让 WordPress 在 REST API 下实现事务。
 
 ## 安装插件
 请插件使用，下载安装包解压到 WordPress 插件目录，并到 WordPress 后台激活插件。
@@ -7,12 +7,12 @@
 ## 使用方法
 
 ### 使用demo
-demo 地址如下：http://example.com/?rest_route=/little_frog/v1/demo
+demo 地址如下：http://example.com/?rest_route=/conn_test/v1/demo
 #### 请求参数
 无需参数
 #### 调用说明
 通过 postman 直接调用 demo 地址即可看到 demo 方法的执行日志
-![image](https://github.com/yusn/little_frog/assets/11848830/3bc3eddf-66ba-413c-9758-344ae3b0a408)
+![image](https://github.com/yusn/conn_test/assets/11848830/3bc3eddf-66ba-413c-9758-344ae3b0a408)
 ## $conn 的使用方法
 $conn 是一个全局变量，你可以在任何地方通过`global $conn;`来引用并使用它，默认情况下 $conn 是禁用自动提交的。
 ### 对事务的操作
