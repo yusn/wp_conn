@@ -4,7 +4,7 @@
  * wpdb 实现事务 transaction
  */
 
-class Conn_frog extends wpdb {
+class WP_Conn extends wpdb {
 	public function __construct() {
 		$dbuser     = defined( 'DB_USER' ) ? DB_USER : '';
 		$dbpassword = defined( 'DB_PASSWORD' ) ? DB_PASSWORD : '';
